@@ -61,9 +61,11 @@ class GimbalServo:
  def updatePosition(self, yaw, pitch, tilt):
   # Check if yaw and pitch value are good ( must be from -pi/2 to +pi/2)
   if abs(yaw) < 2 and abs(pitch) < 2:
+   # Compute tilt offset (tilt channel varies from 1000 to 1520 respectively 0 and 90 degree
+   tiltOffset = (tilt - 1000)/4
    # Compute servo values
    yawValue = self.offsetYaw + ( self.gainYaw * yaw)
-   pitchValue = self.offsetPitch + tilt + ( self.gainPitch * pitch) #todo convert tilt from channel to PWM value
+   pitchValue = self.offsetPitch + tiltOffset + ( self.gainPitch * pitch) 
    
    #clamp values to min and max servo position
    if yawValue > self.MaxPosYaw:
@@ -78,30 +80,24 @@ class GimbalServo:
    self.pwm.setPWM(self.channelYaw,0, int(yawValue))
    self.pwm.setPWM(self.channelPitch,0, int(pitchValue))
    #print "Yaw: ", int(yawValue), "Pitch: ", int(pitchValue) #debug
-   
- def __del__(self):
-  # Release servo power on garbage collect
-  self.pwm.softwareReset()
-  
-# RGBLed Class giving a user feedback through a RGB LED mounted on the Adafruit servo's hat
-class RGBLed:
- def __init__(self, channelRed=13, channelGreen=14, channelBlue=15, I2C_address = 0x40):
-  self.pwm = PWM(I2C_address) # Create the PWM object
-  self.pwm.setPWMFreq(200) # Set frequency to 200 Hz
-  # store parameters
-  
+ 
+ #update RGB led Color
+ def initRGB(self, channelRed=13, channelGreen=14, channelBlue=15):
   # channels
   self.channelRed = channelRed
   self.channelGreen = channelGreen
   self.channelBlue = channelBlue
+ 
+ #update RGB led colors
+ def updateRGBColor(self, R, G, B):
+  self.pwm.setPWM(self.channelRed,0, int(R))
+  self.pwm.setPWM(self.channelGreen,0, int(G))   
+  self.pwm.setPWM(self.channelBlue,0, int(B)) 
   
- #update RGB led Color
- def updateColor(self, R, G, B):
-   
  def __del__(self):
   # Release servo power on garbage collect
   self.pwm.softwareReset()
-  
+
    
  
  
