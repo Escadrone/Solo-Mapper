@@ -3,97 +3,99 @@ SoloMapper_Servo.py
 File used to control the Servo/PWM Pi Hat board on top of the Raspberry Pi
 It uses mainly Adafruit PWM librairy
 """
+
 from Adafruit_PWM_Servo_Driver import PWM
+import time
+from FlagManager import FlagSystem
 
 # GimbalServo Class for controlling both Pitch and Roll servos off the camera's gimbal
 class GimbalServo:
- def __init__(self, channelYaw=0, channelPitch=1, I2C_address = 0x40, MinPosYaw=200, MaxPosYaw=300, MinPosPitch=200, MaxPosPitch=300):
+ 
+
+ def __init__(self, channelYaw, channelPitch, I2C_address, MinPosYaw, MaxPosYaw, MinPosPitch, MaxPosPitch,ButeeMinPitch,ButeeMaxPitch,tiltOffsetFactor): 
   # init and configure PWM module
   self.pwm = PWM(I2C_address) # Create the PWM object
-  self.pwm.setPWMFreq(60) # Set frequency to 60 Hz
+  self.pwm.setPWMFreq(50) # Set frequency to 50 Hz = > Ne pas modifier !!!
   # store arguments
-  # channels
   self.channelYaw = channelYaw 
   self.channelPitch = channelPitch
-  
-  # servos min and max positions
-  # check if argument are positive values
-  if MinPosYaw > 0 and \
-     MaxPosYaw > 0 and \
-     MinPosPitch > 0 and \
-     MaxPosPitch > 0 :
-  
-    # yaw
-    # check if min<max
-    if MinPosYaw < MaxPosYaw:
-     self.MinPosYaw = MinPosYaw 
-     self.MaxPosYaw = MaxPosYaw
-    else:
-     self.MinPosYaw = MaxPosYaw 
-     self.MaxPosYaw = MinPosYaw
-     
-    # pitch
-    # check if min<max
-    if MinPosPitch < MaxPosPitch:
-     self.MinPosPitch = MinPosPitch
-     self.MaxPosPitch = MaxPosPitch
-    else:
-     self.MinPosPitch = MaxPosPitch   
-     self.MaxPosPitch = MinPosPitch
-  else:
-   #if position values are negative affect dummy values
-   self.MinPosYaw=200
-   self.MaxPosYaw=300
-   self.MinPosPitch=200
-   self.MaxPosPitch=300
-	
-  #Compute values from radian to servo PWM unit
-  self.gainYaw = (self.MaxPosYaw - self.MinPosYaw) / 3.1415 # pi -> 180 degree
+  self.MinPosYaw = MinPosYaw 
+  self.MaxPosYaw = MaxPosYaw
+  self.MinPosPitch = MinPosPitch
+  self.MaxPosPitch = MaxPosPitch
+  self.ButeeMinPitch = ButeeMinPitch
+  self.ButeeMaxPitch = ButeeMaxPitch
+  self.tiltOffsetFactor = tiltOffsetFactor
+
+  #Compute values from radian to servo PWM unit  
+  self.gainYaw = (self.MaxPosYaw - self.MinPosYaw)*3.2727 / 3.1415 # pi/1.1034 -> 55 degrees de course
   self.offsetYaw = (self.MaxPosYaw + self.MinPosYaw) / 2 # zero position
   
-  self.gainPitch = (self.MaxPosPitch - self.MinPosPitch) / 3.1415 # pi -> 180 degree
-  self.offsetPitch = (self.MaxPosPitch + self.MinPosPitch) / 2 # zero position    
+  self.gainPitch = (self.MaxPosPitch - self.MinPosPitch) * 2 / 3.1415  # pi/2 -> 90 degree
+
   
-  #print "Min Yaw: ", self.MinPosYaw, "Max Yaw: ", self.MaxPosYaw, "Min Pitch: ", self.MinPosPitch, "Max Pitch: ", self.MaxPosPitch # debug
-  #print "Gain Yaw: ", self.gainYaw, "Offset Yaw: ", self.offsetYaw, "Gain Pitch: ", self.gainPitch, "Offset Pitch: ", self.offsetPitch # debug
-  
- #update servos position uppon yaw and pitch values given in radian, and tilt given in raw channel value
+
+
+ #Update servos position uppon yaw and pitch values given in radian, and tilt given in raw channel value
  def updatePosition(self, yaw, pitch, tilt):
-  # Check if yaw and pitch value are good ( must be from -pi/2 to +pi/2)
+
+  # Check if yaw and pitch value are good ( must be approximatively from -pi/2 to +pi/2)
   if abs(yaw) < 2 and abs(pitch) < 2:
-   # Compute tilt offset (tilt channel varies from 1000 to 1520 respectively 0 and 90 degree
-   tiltOffset = (tilt - 1000)/4
-   # Compute servo values
-   yawValue = self.offsetYaw + ( self.gainYaw * yaw)
-   pitchValue = self.offsetPitch + tiltOffset + ( self.gainPitch * pitch) 
+   # Compute tilt offset (tilt channel varies from 1000 to 1520 respectively 0 and 90 degree and clamp if rc off
+   if 999 < tilt < 1521: 
+    tiltOffset = ((1520-tilt)*self.tiltOffsetFactor)   
+   elif tilt == 0: #Si la telecommande n'est pas allumee / detectee
+    tiltOffset = 0
+   else: #Si valeur absurde
+    tiltOffset = 0
+
+   # Compute servo values 
+   yawValue = self.offsetYaw + ( self.gainYaw * yaw) 
+   pitchValue = self.MinPosPitch + tiltOffset + ( self.gainPitch * pitch)  
    
-   #clamp values to min and max servo position
+   #Eviter de venir en butee physique
+   if pitchValue > self.ButeeMaxPitch:
+    pitchValue = self.ButeeMaxPitch
+   if pitchValue < self.ButeeMinPitch:
+    pitchValue = self.ButeeMinPitch
+
+   #Eviter de venir en butee physique
    if yawValue > self.MaxPosYaw:
     yawValue = self.MaxPosYaw
    if yawValue < self.MinPosYaw:
     yawValue = self.MinPosYaw
-    
-   if pitchValue > self.MaxPosPitch:
-    pitchValue = self.MaxPosPitch
-   if pitchValue < self.MinPosPitch:
-    pitchValue = self.MinPosPitch
-   self.pwm.setPWM(self.channelYaw,0, int(yawValue))
+  
+
+   #Envoi des commandes aux moteurs
    self.pwm.setPWM(self.channelPitch,0, int(pitchValue))
-   #print "Yaw: ", int(yawValue), "Pitch: ", int(pitchValue) #debug
+   self.pwm.setPWM(self.channelYaw,0, int(yawValue))
+
+
+  
  
- #update RGB led Color
- def initRGB(self, channelRed=13, channelGreen=14, channelBlue=15):
+ #initialize RG led Color
+ def initRG(self, channelRed, channelGreen):
   # channels
   self.channelRed = channelRed
   self.channelGreen = channelGreen
-  self.channelBlue = channelBlue
- 
- #update RGB led colors
- def updateRGBColor(self, R, G, B):
-  self.pwm.setPWM(self.channelRed,0, int(R))
-  self.pwm.setPWM(self.channelGreen,0, int(G))   
-  self.pwm.setPWM(self.channelBlue,0, int(B)) 
   
+ 
+ # #update RGB led colors
+ def updateRGColor(self, R, G):
+  self.pwm.setPWM(self.channelRed,0, int(R))
+  self.pwm.setPWM(self.channelGreen,0, int(G))  
+
+# Fait clignoter la LED en rouge pendant le temps qu'elle prend en parametre
+ def RedTwinkle(self,deltaT): 
+  i = 0
+  while i < int(deltaT / 2 + 1):
+   self.updateRGColor(4095,0) #LED rouge
+   time.sleep(1.5)
+   self.updateRGColor(0,0) #LED eteinte
+   time.sleep(0.5)
+   i+=1
+
+
  def __del__(self):
   # Release servo power on garbage collect
   self.pwm.softwareReset()

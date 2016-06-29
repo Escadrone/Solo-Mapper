@@ -5,7 +5,7 @@ class ExifWriter:
 
  #write gps coordinates into the given picture exif
  @staticmethod
- def write_gps(filename, lat, long, altitude): #lat and long are decimals
+ def write_gps(filename, lat, longit, altitude): #lat and long are decimals
   gps = {} #create array
 
   #Altitude
@@ -22,23 +22,23 @@ class ExifWriter:
    gps[piexif.GPSIFD.GPSLatitudeRef] = "N"
    
   latd,latm,lats = ExifWriter._decdeg2dms(lat)
-  gps[piexif.GPSIFD.GPSLatitude] = [(latd,1),(latm,1),(lats,100)];
+  gps[piexif.GPSIFD.GPSLatitude] = [(latd,1),(latm,1),(lats*100,100)];
   
   #Longitude
-  if long<0:
+  if longit<0:
    gps[piexif.GPSIFD.GPSLongitudeRef] = "W"
   else:
    gps[piexif.GPSIFD.GPSLongitudeRef] = "E"
   
-  longd,longm,longs = ExifWriter._decdeg2dms(long)
-  gps[piexif.GPSIFD.GPSLongitude] = [(longd,1),(longm,1),(longs,100)];
+  longd,longm,longs = ExifWriter._decdeg2dms(longit)
+  gps[piexif.GPSIFD.GPSLongitude] = [(longd,1),(longm,1),(longs*100,100)];
 
   exifdict =  piexif.load(filename)
   exifdict["GPS"] = gps
   
   exif_bytes = piexif.dump(exifdict)
   piexif.insert(exif_bytes, filename)
-  exifdict =  piexif.load(filename)
+  exifdict = piexif.load(filename)
  
  #method converting decimal format to DMS
  @staticmethod
