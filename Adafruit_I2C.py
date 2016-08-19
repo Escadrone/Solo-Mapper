@@ -1,10 +1,22 @@
 #!/usr/bin/python
 import re
 import smbus
+from LogConfig import LogSystem
+import logging
+# # ===========================================================================
+# # Adafruit_I2C Class
+# # ===========================================================================
 
-# ===========================================================================
-# Adafruit_I2C Class
-# ===========================================================================
+# ########## Stat logging init ########
+loggerName = "I2C logger"
+logFile = "i2c"
+i2cLogManager = LogSystem(loggerName,logFile,False) #On cree une instance de configuration du log
+i2cLogger = i2cLogManager.getGlobalLogger()
+print 'I2C_LOGGER :',i2cLogger
+# ############ End logging init #############
+
+i2cLogger.info('I2C logger started')
+
 
 class Adafruit_I2C(object):
 
@@ -55,15 +67,18 @@ class Adafruit_I2C(object):
 
   def errMsg(self):
     print "Error accessing 0x%02X: Check your I2C address" % self.address
+    i2cLogger.debug('Error accessing 0x%%02X: Check your I2C address : %s', self.address)
     return -1
 
   def write8(self, reg, value):
     "Writes an 8-bit value to the specified register/address"
-    try:
+    try:      
       self.bus.write_byte_data(self.address, reg, value)
       if self.debug:
         print "I2C: Wrote 0x%02X to register 0x%02X" % (value, reg)
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error writing an 8-bit value to the specified register/address : %s', erreur)
       return self.errMsg()
 
   def write16(self, reg, value):
@@ -74,6 +89,8 @@ class Adafruit_I2C(object):
         print ("I2C: Wrote 0x%02X to register pair 0x%02X,0x%02X" %
          (value, reg, reg+1))
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error writing a 16-bit value to the specified register/address pair : %s', erreur)
       return self.errMsg()
 
   def writeRaw8(self, value):
@@ -83,6 +100,8 @@ class Adafruit_I2C(object):
       if self.debug:
         print "I2C: Wrote 0x%02X" % value
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error writing an 8-bit value on the bus : %s', erreur)
       return self.errMsg()
 
   def writeList(self, reg, list):
@@ -93,6 +112,8 @@ class Adafruit_I2C(object):
         print list
       self.bus.write_i2c_block_data(self.address, reg, list)
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error Writing an array of bytes using I2C format : %s', erreur)
       return self.errMsg()
 
   def readList(self, reg, length):
@@ -105,6 +126,8 @@ class Adafruit_I2C(object):
         print results
       return results
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error reading a list of bytes from the I2C device : %s', erreur)
       return self.errMsg()
 
   def readU8(self, reg):
@@ -116,6 +139,8 @@ class Adafruit_I2C(object):
          (self.address, result & 0xFF, reg))
       return result
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error reading an unsigned byte from the I2C device : %s', erreur)
       return self.errMsg()
 
   def readS8(self, reg):
@@ -128,6 +153,8 @@ class Adafruit_I2C(object):
          (self.address, result & 0xFF, reg))
       return result
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error reading a signed byte from the I2C device : %s', erreur)
       return self.errMsg()
 
   def readU16(self, reg, little_endian=True):
@@ -142,6 +169,8 @@ class Adafruit_I2C(object):
         print "I2C: Device 0x%02X returned 0x%04X from reg 0x%02X" % (self.address, result & 0xFFFF, reg)
       return result
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error reading an unsigned 16-bit value from the I2C device : %s', erreur)
       return self.errMsg()
 
   def readS16(self, reg, little_endian=True):
@@ -151,11 +180,15 @@ class Adafruit_I2C(object):
       if result > 32767: result -= 65536
       return result
     except IOError, err:
+      erreur = self.errMsg()
+      i2cLogger.debug('Error reading a signed 16-bit value from the I2C device : %s', erreur)
       return self.errMsg()
 
 if __name__ == '__main__':
   try:
     bus = Adafruit_I2C(address=0)
     print "Default I2C bus is accessible"
+    i2cLogger.debug('Default I2C bus is accessible')
   except:
+    i2cLogger.debug('Error accessing default I2C bus')
     print "Error accessing default I2C bus"

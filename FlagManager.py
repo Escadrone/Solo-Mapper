@@ -9,3 +9,8 @@ class FlagSystem:
 
  droneIsFlying = False
  droneIsLanding = False
+
+ dateUpdated = False
+
+ checkMavlinkMessages = 0
+ checkUsbPorts = 0

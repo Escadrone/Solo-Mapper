@@ -4,9 +4,12 @@ import time
 import math
 from Adafruit_I2C import Adafruit_I2C
 
-# ============================================================================
-# Adafruit PCA9685 16-Channel PWM Servo Driver
-# ============================================================================
+
+# # ============================================================================
+# # Adafruit PCA9685 16-Channel PWM Servo Driver
+# # ============================================================================
+
+
 
 class PWM :
   # Registers/etc.
@@ -45,7 +48,7 @@ class PWM :
     self.address = address
     self.debug = debug
     if (self.debug):
-      print "Reseting PCA9685 MODE1 (without SLEEP) and MODE2"
+      print "Reseting PCA9685 MODE1 (without SLEEP) and MODE2"      
     self.setAllPWM(0, 0)
     self.i2c.write8(self.__MODE2, self.__OUTDRV)
     self.i2c.write8(self.__MODE1, self.__ALLCALL)
@@ -63,11 +66,11 @@ class PWM :
     prescaleval /= float(freq)
     prescaleval -= 1.0
     if (self.debug):
-      print "Setting PWM frequency to %d Hz" % freq
-      print "Estimated pre-scale: %d" % prescaleval
+      print "Setting PWM frequency to %d Hz" % freq      
+      print "Estimated pre-scale: %d" % prescaleval      
     prescale = math.floor(prescaleval + 0.5)
     if (self.debug):
-      print "Final pre-scale: %d" % prescale
+      print "Final pre-scale: %d" % prescale      
 
     oldmode = self.i2c.readU8(self.__MODE1);
     newmode = (oldmode & 0x7F) | 0x10             # sleep

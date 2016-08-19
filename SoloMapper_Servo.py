@@ -12,7 +12,7 @@ from FlagManager import FlagSystem
 class GimbalServo:
  
 
- def __init__(self, channelYaw, channelPitch, I2C_address, MinPosYaw, MaxPosYaw, MinPosPitch, MaxPosPitch,ButeeMinPitch,ButeeMaxPitch,tiltOffsetFactor): 
+ def __init__(self, channelYaw, channelPitch, I2C_address, MinPosYaw, MaxPosYaw, MinPosPitch, MaxPosPitch,ButeeMinPitch,ButeeMaxPitch,tiltOffsetFactor,globalLogger): 
   # init and configure PWM module
   self.pwm = PWM(I2C_address) # Create the PWM object
   self.pwm.setPWMFreq(50) # Set frequency to 50 Hz = > Ne pas modifier !!!
@@ -26,6 +26,7 @@ class GimbalServo:
   self.ButeeMinPitch = ButeeMinPitch
   self.ButeeMaxPitch = ButeeMaxPitch
   self.tiltOffsetFactor = tiltOffsetFactor
+  self.logger = globalLogger
 
   #Compute values from radian to servo PWM unit  
   self.gainYaw = (self.MaxPosYaw - self.MinPosYaw)*3.2727 / 3.1415 # pi/1.1034 -> 55 degrees de course
@@ -67,9 +68,11 @@ class GimbalServo:
   
 
    #Envoi des commandes aux moteurs
-   self.pwm.setPWM(self.channelPitch,0, int(pitchValue))
-   self.pwm.setPWM(self.channelYaw,0, int(yawValue))
-
+   try : 
+    self.pwm.setPWM(self.channelPitch,0, int(pitchValue))
+    self.pwm.setPWM(self.channelYaw,0, int(yawValue))
+   except Exception as e:
+    self.logger.error('PWM servo command crashed : %s', e)
 
   
  
@@ -82,8 +85,11 @@ class GimbalServo:
  
  # #update RGB led colors
  def updateRGColor(self, R, G):
-  self.pwm.setPWM(self.channelRed,0, int(R))
-  self.pwm.setPWM(self.channelGreen,0, int(G))  
+  try:
+   self.pwm.setPWM(self.channelRed,0, int(R))
+   self.pwm.setPWM(self.channelGreen,0, int(G))  
+  except Exception  as err:
+   self.logger.error('PWM Led command crashed : %s',err)
 
 # Fait clignoter la LED en rouge pendant le temps qu'elle prend en parametre
  def RedTwinkle(self,deltaT): 

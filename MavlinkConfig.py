@@ -58,12 +58,13 @@ class MavConfig:
   	0,
   	0,
   	12,
-  	0,0)
+  	1,1)
 
-  #send command to vehicle
+  # #send command to vehicle
   self.droneSolo.send_mavlink(msg)
 
 
+ ## set RC CHANNELS messages frequency
   msg = self.droneSolo.message_factory.request_data_stream_encode(
     0,
     0,

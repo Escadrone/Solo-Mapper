@@ -32,7 +32,7 @@ class SoloCamera:
 
  
 
- def __init__(self):
+ def __init__(self,globalLogger):
   # Parse configuration file
   Config = ConfigParser.ConfigParser()
   Config.read("/mnt/Usb-Solo-Mapper/SoloMapperConfig.txt")
@@ -43,6 +43,9 @@ class SoloCamera:
   self.CameraPSK = Config.get ("Camera", "CameraPSK")
   self.CameraPicturePath = Config.get ("Camera", "CameraPicturePath")
   self.CameraPictureDirectoryName = Config.get ("Camera", "CameraPictureDirectoryName")
+  
+  #Get log manager instance
+  self.logger = globalLogger 
 
 
   # Configure Wifi interfaces with a template
@@ -53,38 +56,69 @@ class SoloCamera:
   # Try to apply the template to the /etc/network/interfaces file
   try:
    self.applyTemplate('/etc/network/interfaces', 'SoloWifiTemplate.txt', wifiTemplateParameters)
-  except TemplateError as error:
-   print "exception during applyTemplate call"
-   print error
+  except TemplateError as error:   
+   self.logger.error('exception during applyTemplate call : %s', error)
 
-  # Check if wifi connection with QX1 works with ping
-  print "Trying to connect with Sony QX1..."
+  # Check if wifi connection with QX1 works with ping  
+  self.logger.info('trying to connect with Sony QX1')
   CheckQX1 = 1
   while CheckQX1!=0:
    try:
     CheckQX1 = subprocess.call(["ping","-c 2",self.CameraIP], shell=False)
-   except:
-    print("Can't connect with Sony QX1")
-    CheckQX1 = 0
-  print "QX1 has answered and given an IP address"
+   except:    
+    self.logger.debug('Can t connect with Sony QX1')
+    CheckQX1 = 0  
+  self.logger.info('QX1 has answered and given an IP address')
   FlagSystem.QX1IsRunning = True
   #connect with the camera using sony api
   self.api = pysony.SonyAPI( "http://"+ self.CameraIP + ":8080")
-  #put the camera in remote shooting mode
+  self.logger.debug('connect with QX1 using sony API')  
+  self.logger.info('connected with QX1')
+   
+
+
+
+  # Check & Config QX1
+  mode = self.api.getAvailableApiList() #logger.debug('Available API list : %s', mode)
+
+  #Checking SD Card
+  if 'getStorageInformation' in (mode['result'])[0]:
+   qx1StorageInfo = self.api.getStorageInformation()['result'][0][0]['storageID']
+   #logger.debug('storage : %s', qx1StorageInfo)
+   if qx1StorageInfo != 'Memory Card 1' :
+    self.logger.error('SD card is not plugged or is misplaced %s : ', qx1StorageInfo)
+   else :
+    self.logger.info('SD card is inserted in QX1 and operational %s : ', qx1StorageInfo)
+   
+
+  # # Disable the flash
+  flashMode = self.api.getFlashMode()['result'][0]
+  self.logger.info('Flash mode : %s', flashMode)
+  # Put the camera in remote shooting mode
   self.api.setCameraFunction("Remote Shooting")
-  #scpecify the postview image size format
+  cameraFunction = self.api.getCameraFunction()['result'][0]
+  self.logger.info('Camera set in remote shooting mode : %s', cameraFunction)
+  # Specify the postview image size format
   self.api.setPostviewImageSize("Original")
-  print "Connected with QX1"
+  postviewImageSize = self.api.getPostviewImageSize()['result'][0]
+  self.logger.info('Specify the postview image size format at : %s', postviewImageSize)
+  # Set still quality to JPG only & Fine
+  stillQuality = self.api.getStillQuality()['result'][0]['stillQuality']
+  self.logger.info('Still quality : %s', stillQuality)
+  # Set picture size to 2O megapixels (max available)
+  stillSize = self.api.getStillSize()['result'][0]['size']
+  self.logger.info('Photographs size) : %s', stillSize)
+  
+
   #launch the liveview thread
   try:
-   self.threadLV = LiveViewThread(3, "LiveViewThread", self.api,self.CameraIP)
+   self.threadLV = LiveViewThread(3, "LiveViewThread", self.api,self.CameraIP,self.logger)
    self.threadLV.start()
    
   except:
    FlagSystem.QX1IsRunning = False
-   proc4 = subprocess.Popen("omxplayer" + " -o hdmi videos/connexionLost.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
-   print "Error: unable to start Live View thread"
-   logging.debug('Error: unable to start Live View thread')
+   proc4 = subprocess.Popen("omxplayer" + " -o hdmi videos/connexionLost.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)   
+   self.logger.error('Error: unable to start Live View thread')
 
 
 
@@ -97,14 +131,12 @@ class SoloCamera:
   
   try :   
    pictureTaken=self.api.actTakePicture()   
-   #retrieve name of the picture taken
-   print ("Picture taken: ")
+   #retrieve name of the picture taken   
    #actTakePicture return a json Array of array and the name of the picture is given under 'result' field
    picturefilestring = pictureTaken['result'][0][0] 
    #removing the backslashes
    picturefilestring = picturefilestring.replace('\\',"")
-   #get the picture name
-   print'picturefilestring :',picturefilestring
+   #get the picture name   
    picturename = re.search('DSC.*\.JPG', picturefilestring).group(0)
   
    self.picturefilestringList.append(picturefilestring)
@@ -117,7 +149,7 @@ class SoloCamera:
   except Exception: 
    proc5 = subprocess.Popen("omxplayer" + " -o hdmi /mnt/Usb-Solo-Mapper/videos/errorTakingPicture.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
    proc5.wait()
-   logging.debug('errorTakingPicture!')
+   self.logger.debug('errorTakingPicture!')
 
  # 
  # Telecharge les photos prises pendant le vol, et ecrit dans les .exif les donnees GPS sauvegardees
@@ -161,12 +193,15 @@ class SoloCamera:
     i = 0  
 
     #On depile les listes
-    while i < nbPhotos:  
-     print 'Chemin : ',self.CameraPictureFullPath + '/' + self.picturenameList[i]
+    while i < nbPhotos:       
+     self.logger.info('Chemin :  %s/%s',self.CameraPictureFullPath,self.picturenameList[i])
      urllib.urlretrieve(self.picturefilestringList[i],self.CameraPictureFullPath + '/' + self.picturenameList[i])
-     size = os.path.getsize(self.CameraPictureFullPath + '/' + self.picturenameList[i])
-     print'size : ',size
-     ExifWriter.write_gps(self.CameraPictureFullPath + '/' + self.picturenameList[i],self.latList[i], self.longList[i], self.altitudeList[i])
+     size = os.path.getsize(self.CameraPictureFullPath + '/' + self.picturenameList[i])     
+     self.logger.info('Image size : %s',size) 
+     try:
+      ExifWriter.write_gps(self.CameraPictureFullPath + '/' + self.picturenameList[i],self.latList[i], self.longList[i], self.altitudeList[i])
+     except:
+      self.logger.debug('0 GPS detected, no geotagging')      
      i+=1
 
   #On vide les listes
@@ -209,12 +244,13 @@ class SoloCamera:
 class LiveViewThread (threading.Thread):
 
 
- def __init__(self, threadID, name, sonyapi, CameraIP):
+ def __init__(self, threadID, name, sonyapi, CameraIP,globalLogger):
   threading.Thread.__init__(self)
   self.threadID = threadID
   self.name = name
   self.api = sonyapi
   self.CameraIP = CameraIP
+  self.logger = globalLogger
 
 
  def run(self):
@@ -225,44 +261,41 @@ class LiveViewThread (threading.Thread):
    if FlagSystem.QX1IsRunning: 
     try:   
      print "Starting " + self.name
+     self.logger.info('Starting %s',self.name)
      print self.api.startLiveview()
      # Video is streamed with omxplayer
-     print "Launching omxplayer"
+     print "Launching omxplayer" 
+     self.logger.info('Launching omxplayer')
      
      retcode = subprocess.call("omxplayer" + " --live -o hdmi http://"+ self.CameraIP + ":8080/liveview/liveviewstream" , shell=True)     
-     if retcode < 0:
-      print "Omxplayer was terminated by signal"
-      logging.debug('Omxplayer was terminated by signal')
+     if retcode < 0:      
+      self.logger.debug('Omxplayer was terminated by signal')
       reLaunchLiveView = False
-     else:
-      print "Omxplayer returned"
-
+     else:  
       FlagSystem.QX1IsRunning = False
       proc3 = subprocess.Popen("omxplayer" + " -o hdmi videos/connexionLost.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)   
       time.sleep(2)#On s'assure que la connexion est bien perdue
       #proc3.wait() 
-      logging.debug('QX1 connexion lost!')
-      # Check if wifi connection with QX1 works with ping
-      print "Trying to connect with Sony QX1..."
+      self.logger.debug('QX1 connexion lost!')
+      # Check if wifi connection with QX1 works with ping 
+      self.logger.debug('Trying to connect with Sony QX1...')
       CheckQX1 = 1
        
       while CheckQX1!=0:
        try:
         CheckQX1 = subprocess.call(["ping","-c 2",self.CameraIP], shell=False)
-       except:
-        print("Can't connect with Sony QX1")
-        CheckQX1 = 0
-      print "QX1 has answered and given an IP address"
-      proc3.kill()
-  
-
+       except:        
+        self.logger.debug('Can\'t connect with Sony QX1')
+        CheckQX1 = 0      
+      self.logger.debug('QX1 has answered and given an IP address')
+      proc3.kill()  
       FlagSystem.QX1IsRunning = True
-    except OSError as e: # Si echec de connexion avec le QX1
-     print >>sys.stderr, "Omxplayer Execution failed:", e
-     logging.debug('Omxplayer Execution failed:')
+
+    except OSError as e: # Si echec de connexion avec le QX1     
+     self.logger.error('Omxplayer Execution failed: %s',e)
      FlagSystem.QX1IsRunning = False
-     proc4 = subprocess.Popen("omxplayer" + " -o hdmi videos/connexionLost.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
-    print "Exiting " + self.name  
+     proc4 = subprocess.Popen("omxplayer" + " -o hdmi videos/connexionLost.mp4", stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)    
+    self.logger.debug('Exiting %s',self.name)
    time.sleep(2) #on attend un peu...
  
 
