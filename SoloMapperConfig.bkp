@@ -1,8 +1,0 @@
-[Camera]
-CameraSSID: DIRECT-hoQ1:ILCE-QX1
-CameraPSK: JkYvG4rq
-CameraIP: 192.168.122.1
-CamreaPictureDirectory: SoloMedia/
-[Solo]
-SoloSerialPort: /dev/ttyUSB0
-SoloSerialBaudrate: 230400
