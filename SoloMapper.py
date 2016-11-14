@@ -1,8 +1,8 @@
+#!/usr/bin/python
 from LogConfig import LogSystem
 import logging
 import os
-
-
+from MavlinkConfig import MavConfig
 
 ########## Stat logging init ########
 
@@ -41,7 +41,7 @@ from SoloMapper_Servo import GimbalServo
 from SoloMapper_QX1 import SoloCamera
 import ConfigParser
 from dronekit import connect, Vehicle, mavutil
-from UsbLogger import UsbLoggerThread
+#from UsbLogger import UsbLoggerThread
 from PhotoCommand import PhotoCommandThread
 from MavlinkConfig import MavConfig
 from FlagManager import FlagSystem
@@ -72,24 +72,34 @@ SoloSerialBaudrate = ConfigSolo.get("Solo", "SoloSerialBaudrate") #230400
 logger.info('SoloSerialBaudrate : %s', SoloSerialBaudrate)
 
 try:
- vehicle = connect(SoloSerialPort, baud = SoloSerialBaudrate, wait_ready=True)
+ vehicle = connect(SoloSerialPort, baud = SoloSerialBaudrate, wait_ready=['system_status','attitude','channels'], heartbeat_timeout=30)
  logger.info('vehicle : %s', vehicle)
 except Exception as e:
- logger.error('Erreur de connection au drone SOLO : %s',e)
+ try:
+  vehicle = connect(SoloSerialPort, baud = SoloSerialBaudrate, wait_ready=['system_status','attitude','channels'], heartbeat_timeout=30)
+  logger.info('vehicle : %s', vehicle)
+ except Exception as e:
+  vehicle.close()
+  logger.error('Erreur de connection au drone SOLO : %s',e)
+  time.sleep(0.5)
+  #SoloGimbalServo.updateRGColor(0,0) # LED eteinte
+  #subprocess.call("umount /dev/sda",shell=False)
+  subprocess.call("umount /dev/sda1",shell=True)
+  os.system("shutdown now -r")
 
 # Configure le stream des messages du drone vers le RasberryPi (Serial Port 4)
 configurationMavlink = MavConfig(vehicle) 
 configurationMavlink.ConfigureStreamMessage()
 
 
-#Config + lancement du thread de check des ports USB
-checkUSBportThread = UsbLoggerThread(logger) #creation nouvelle instance
-try:
-  checkUSBportThread.setDaemon(True)
-  checkUSBportThread.start() #lancement thread
-  logger.info('Starting checkUSBportThread')
-except BaseException, exc:
-  logger.error('Error launching checkUSBportThread : %s',exc)
+##Config + lancement du thread de check des ports USB
+#checkUSBportThread = UsbLoggerThread(logger) #creation nouvelle instance
+#try:
+#  checkUSBportThread.setDaemon(True)
+#  checkUSBportThread.start() #lancement thread
+#  logger.info('Starting checkUSBportThread')
+#except BaseException, exc:
+#  logger.error('Error launching checkUSBportThread : %s',exc)
 
 
 logger.info('Mode : %s', vehicle.mode.name)
@@ -189,6 +199,11 @@ def stateListener(self, attr_name, msg):
   if FlagSystem.droneIsFlying == True:
    FlagSystem.droneIsFlying = False
    FlagSystem.droneIsLanding = True
+ elif vehicle.system_status.state == 'POWEROFF':
+  #subprocess.call("umount /dev/sda",shell=False)
+  vehicle.close()
+  subprocess.call("umount /dev/sda1",shell=True)
+  os.system("shutdown now -P")
 
  logger.debug('system_status stateListener %s', msg)
 
@@ -214,6 +229,7 @@ try:
    time.sleep(0.02)
 
 except BaseException, e:
+  SoloGimbalServo.updateRGColor(0,0) # LED eteinte
   logger.error('Error main thread !')
   logger.error('Main thread except e : %s', e)
   

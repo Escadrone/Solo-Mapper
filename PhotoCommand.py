@@ -35,7 +35,7 @@ class PhotoCommandThread(Thread):
         while self.goOn:     
        
          if FlagSystem.QX1IsRunning:
-           if (FlagSystem.QX1PhotoOrder or self.droneSolo.channels['8'] >= self.tiltLevel):
+           if (FlagSystem.QX1PhotoOrder or self.droneSolo.channels['8'] >= self.tiltLevel or self.droneSolo.channels['7'] > 1000 ):
             with verrou:                         
              FlagSystem.QX1IsTakingPicture = True
 	     self.logger.info('QX1 is taking a picture at lat : %s, long : %s, alt : %s', self.droneSolo.location.global_frame.lat, self.droneSolo.location.global_frame.lon, self.droneSolo.location.global_frame.alt)	
